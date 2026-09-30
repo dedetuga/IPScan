@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install IP Scan (classic ACAP, ARTPEC-4/5 MIPS). Run as root on the camera:
-#   scp ipscan_1_0_1_artpec5_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
+#   scp ipscan_1_1_0_artpec5_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
 #   ssh root@CAM 'sh /tmp/install-dev.sh'
 #
 # How it works (each point solved a real blocker on AXIS OS 9.70 / ARTPEC-5):
@@ -63,4 +63,4 @@ echo -n "-- anon:     "; curl -s -o /dev/null -w "%{http_code} (expect 401)\n" "
 echo    "-- authed:   (expect 200 + json; set CAM_PASS=<root password>)"
 curl -s --anyauth -u "root:${CAM_PASS:-pass}" -w "   http_status=%{http_code}\n" "http://127.0.0.1/local/$APP/control.cgi?op=info"
 echo "-- stuck acapmanager procs (should be none): $(pidof acapmanager 2>/dev/null | wc -w)"
-echo "===== DONE — open  http://<camera-ip>/local/$APP/config.html  (admin login) ====="
+echo "===== DONE — open  http://<camera-ip>/local/$APP/index.html  (admin login) ====="

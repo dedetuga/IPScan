@@ -6,13 +6,16 @@
 // Companion to SSH Jump: every host with SSH open gets a one-click link that
 // opens the SSH Jump terminal pre-filled with that IP.
 //
-// One binary, two deployment flavours (selected at build time via -ldflags):
+// One binary per architecture; the transport is chosen at run time, so the
+// same package works on every AXIS OS generation (see main()):
 //
-//	modern  (AXIS OS 10+, manifest.json)  -> plain HTTP on 127.0.0.1:2202,
-//	        reached through the ACAP reverseProxy at  /local/ipscan/api/<op>
-//	legacy  (ARTPEC-4/5, classic package.conf) -> HTTP *and* FastCGI on the
-//	        Unix socket /var/run/http/ipscan/http, reached through Apache
-//	        mod_proxy_http at  /local/ipscan/control.cgi?op=<op>
+//	AXIS OS 9.x - 10.5  (classic package.conf): postinstall.sh wires Apache
+//	        mod_proxy_http  /local/ipscan/control.cgi -> unix:/var/run/http/ipscan/http
+//	        (the daemon speaks HTTP *and* FastCGI on that socket)
+//	AXIS OS 10.6+       (manifest.json): httpConfig fastCgi
+//	        /local/ipscan/control.cgi -> FastCGI on $FCGI_SOCKET_NAME
+//	AXIS OS 11.8+       additionally manifest reverseProxy
+//	        /local/ipscan/api/<op>    -> http://localhost:2202
 //
 // The router accepts both styles (?op=<op> or a trailing /<op> path segment).
 // Transport is plain request/response + polling, which works through the Axis
@@ -40,10 +43,11 @@ import (
 	"time"
 )
 
-// Build-time settings (-ldflags "-X main.version=... -X main.flavor=legacy").
+// Build-time settings (-ldflags "-X main.version=... -X main.flavor=...").
+// flavor is informational only (shown by op=info); nothing depends on it.
 var (
-	version = "1.0.1"
-	flavor  = "modern" // "modern" or "legacy"
+	version = "1.1.0"
+	flavor  = "dev"
 )
 
 // ---- configuration (overridable via environment) ---------------------------
@@ -60,8 +64,7 @@ var (
 	idleTimeout = parseDuration(env("IPSCAN_IDLE_TIMEOUT", "30m"))
 	logPath     = env("IPSCAN_LOG", "/tmp/ipscan.log")
 	debug       = os.Getenv("IPSCAN_DEBUG") == "1"
-	// modern: TCP listen address. legacy: Unix socket path. IPSCAN_LISTEN forces
-	// TCP (handy for local debugging of a legacy build).
+	// IPSCAN_LISTEN replaces the default loopback TCP listeners (debugging).
 	tcpAddr    = os.Getenv("IPSCAN_LISTEN")
 	socketPath = env("IPSCAN_SOCKET", "/var/run/http/"+appName+"/http")
 )
@@ -299,19 +302,24 @@ type bufferedConn struct {
 
 func (c *bufferedConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
-func serveUnixMux(path string, h http.Handler) error {
+func listenUnix(path string) (net.Listener, error) {
 	_ = os.MkdirAll(filepath.Dir(path), 0777)
 	_ = os.Remove(path)
 	ln, err := net.Listen("unix", path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_ = os.Chmod(path, 0666)
+	return ln, nil
+}
+
+// serveMux serves HTTP and FastCGI on the same listener, told apart by the
+// first byte (FastCGI records start with version byte 0x01).
+func serveMux(ln net.Listener, h http.Handler) error {
 	fcgiL := &chanListener{ch: make(chan net.Conn), addr: ln.Addr()}
 	httpL := &chanListener{ch: make(chan net.Conn), addr: ln.Addr()}
 	go func() { _ = fcgi.Serve(fcgiL, h) }()
 	go func() { _ = http.Serve(httpL, h) }()
-	inf("listening on unix:%s (FastCGI + HTTP)", path)
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -327,7 +335,7 @@ func serveUnixMux(path string, h http.Handler) error {
 				return
 			}
 			bc := &bufferedConn{Conn: c, r: br}
-			if first[0] == 0x01 { // FastCGI version byte
+			if first[0] == 0x01 {
 				fcgiL.ch <- bc
 			} else {
 				httpL.ch <- bc
@@ -352,12 +360,19 @@ func raiseNoFile() {
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("[ipscan] ")
-	if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		log.SetOutput(io.MultiWriter(os.Stderr, lf))
-	}
 	if w, err := syslog.New(syslog.LOG_INFO|syslog.LOG_USER, appName); err == nil {
 		sysLog = w
 	}
+	// With syslog connected, stderr would only duplicate every line in the
+	// system log (systemd forwards stderr there too), so keep just the file.
+	var outs []io.Writer
+	if sysLog == nil {
+		outs = append(outs, os.Stderr)
+	}
+	if lf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+		outs = append(outs, lf)
+	}
+	log.SetOutput(io.MultiWriter(outs...))
 	raiseNoFile()
 	initSockSem()
 	initPinger()
@@ -384,56 +399,66 @@ func main() {
 	h = safe(h)
 	inf("runtime: uid=%d gid=%d FCGI_SOCKET_NAME=%q", os.Getuid(), os.Getgid(), os.Getenv("FCGI_SOCKET_NAME"))
 
-	// Every transport that applies is started; the app only gives up if none
-	// of them could be opened. Which one the camera's Apache uses depends on
-	// the AXIS OS version:
-	//   modern  -> manifest reverseProxy  (api/<op>  -> http://localhost:2202)
-	//              manifest transferCgi   (control.cgi -> FastCGI on $FCGI_SOCKET_NAME)
-	//   legacy  -> mod_proxy_http         (control.cgi -> unix socket, HTTP or FastCGI)
-	var addrs []string
+	// Every transport that can be opened is started; the daemon only gives up
+	// when none could. Which one the camera's Apache actually uses depends on
+	// the AXIS OS version (see the header comment).
+	type server struct {
+		name  string
+		serve func() error
+	}
+	var servers []server
+
+	addrs := []string{"127.0.0.1:2202", "[::1]:2202"} // "localhost" may be ::1 first
 	if tcpAddr != "" {
 		addrs = []string{tcpAddr}
-	} else if flavor == "modern" {
-		// "localhost" may resolve to ::1 first on newer AXIS OS; answer on both.
-		addrs = []string{"127.0.0.1:2202", "[::1]:2202"}
 	}
-	errs := make(chan error, 4)
-	started := 0
 	for _, a := range addrs {
 		ln, err := net.Listen("tcp", a)
 		if err != nil {
 			if strings.HasPrefix(a, "[::1]") {
-				inf("IPv6 loopback not available (%v) — IPv4 only", err)
+				dbg("IPv6 loopback not available (%v)", err)
 			} else {
-				errf("cannot listen on tcp:%s: %v", a, err)
+				warnf("cannot listen on tcp:%s: %v", a, err)
 			}
 			continue
 		}
-		inf("listening on tcp:%s (HTTP)", a)
-		started++
-		go func(ln net.Listener) { errs <- http.Serve(ln, h) }(ln)
+		servers = append(servers, server{"tcp:" + a + " (HTTP)", func() error { return http.Serve(ln, h) }})
 	}
-	if fs := os.Getenv("FCGI_SOCKET_NAME"); fs != "" && flavor == "modern" {
+	if fs := os.Getenv("FCGI_SOCKET_NAME"); fs != "" {
+		// AXIS OS 10.6+: manifest httpConfig "fastCgi" -> /local/<app>/control.cgi
 		_ = os.Remove(fs)
 		if ln, err := net.Listen("unix", fs); err != nil {
 			errf("cannot listen on FastCGI socket %s: %v", fs, err)
 		} else {
 			_ = os.Chmod(fs, 0777)
-			inf("listening on unix:%s (FastCGI, control.cgi)", fs)
-			started++
-			go func() { errs <- fcgi.Serve(ln, h) }()
+			servers = append(servers, server{"unix:" + fs + " (FastCGI)", func() error { return fcgi.Serve(ln, h) }})
+		}
+	} else if tcpAddr == "" {
+		// AXIS OS 9.x/10.x classic package: postinstall.sh points Apache's
+		// mod_proxy_http at this socket.
+		if ln, err := listenUnix(socketPath); err != nil {
+			warnf("cannot listen on unix:%s: %v", socketPath, err)
+		} else {
+			servers = append(servers, server{"unix:" + socketPath + " (HTTP+FastCGI)", func() error { return serveMux(ln, h) }})
 		}
 	}
-	if flavor == "legacy" && tcpAddr == "" {
-		started++
-		go func() { errs <- serveUnixMux(socketPath, h) }()
-	}
-	if started == 0 {
+	if len(servers) == 0 {
 		errf("no transport could be opened — exiting")
 		os.Exit(1)
 	}
-	err := <-errs
-	errf("server error: %v", err)
+	errs := make(chan error, len(servers))
+	for _, sv := range servers {
+		inf("listening on %s", sv.name)
+		go func(sv server) {
+			err := sv.serve()
+			errf("%s stopped: %v", sv.name, err)
+			errs <- err
+		}(sv)
+	}
+	for range servers { // keep running while at least one transport is alive
+		<-errs
+	}
+	errf("all transports failed — exiting")
 	os.Exit(1)
 }
 

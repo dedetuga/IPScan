@@ -1,3 +1,6 @@
+# NOTE: produces a manifest-only package (AXIS OS 10.6+). ./build.sh builds the
+# dual-mode packages that also cover AXIS OS 9.x (PIE launcher + package.conf).
+#
 # Canonical build: cross-compile the Go backend, then package the .eap with the
 # official Axis ACAP Native SDK so the produced package matches Axis' own format.
 #

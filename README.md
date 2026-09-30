@@ -12,16 +12,49 @@ your browser ──HTTPS──> Axis camera web UI ──ICMP / TCP / ARP / NetB
                         (reverse proxy + Axis admin authentication)
 ```
 
-One source tree builds **all four** packages:
+One source tree builds **all four** packages, each meant to cover AXIS OS
+9.x through 12.x:
 
-| Package | Cameras | Framework |
+| Package | Cameras | AXIS OS |
 |---|---|---|
-| `ipscan_1_0_1_aarch64.eap` | ARTPEC‑8 and newer | AXIS OS 10+ (`manifest.json`) |
-| `ipscan_1_0_1_armv7hf.eap` | ARTPEC‑6 / ARTPEC‑7 | AXIS OS 10+ (`manifest.json`) |
-| `ipscan_1_0_1_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | classic ACAP (`package.conf`), AXIS OS 9.x |
-| `ipscan_1_0_1_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | classic ACAP (`package.conf`), AXIS OS 9.x |
+| `ipscan_1_1_0_aarch64.eap` | ARTPEC‑8/9, CV25 … | 10.x – 12.x |
+| `ipscan_1_1_0_armv7hf.eap` | ARTPEC‑6/7, S2L/S5L … | 9.x – 12.x |
+| `ipscan_1_1_0_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | 9.x (classic, SSH install) |
+| `ipscan_1_1_0_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | 9.x (classic, SSH install) |
 
-Prebuilt packages are in [`dist/`](dist/).
+Prebuilt packages are in [`dist/`](dist/); the previous release (1.0.1, AXIS OS
+10.6+ only on ARM) is kept in `dist/1.0.1/`.
+
+### Test status
+
+| | Verified on hardware | Verified in emulation (qemu) |
+|---|---|---|
+| 1.0.1 aarch64 | ✅ AXIS P3265‑LVE (ARTPEC‑8), via `api/` | ✅ |
+| 1.0.0 | ✅ AXIS M3105‑L | ✅ |
+| 1.0.1 armv7hf | ❌ did not start on an armv7hf camera (empty log) — fixed in 1.1.0 by the PIE launcher + `package.conf` path | ✅ |
+| 1.1.0 (all four) | ⏳ not yet | ✅ daemon, both transports, launchers |
+
+## How one package runs on AXIS OS 9 … 12
+
+| AXIS OS | Reads | Starts the app via | Web route to the daemon |
+|---|---|---|---|
+| 9.x – 10.5 | `package.conf` | classic init script (only accepts **ET_DYN** binaries) | `postinstall.sh` (runs as root) installs an Apache `mod_proxy_http` rule: `/local/ipscan/control.cgi` → `unix:/var/run/http/ipscan/http` |
+| 10.6 – 11.7 | `manifest.json` | systemd | `httpConfig` **fastCgi**: `control.cgi` → FastCGI on `$FCGI_SOCKET_NAME` |
+| 11.8 – 12.x | `manifest.json` | systemd | `reverseProxy`: `/local/ipscan/api/` → `http://localhost:2202` (the daemon listens on **127.0.0.1 and ::1** — on AXIS OS 12 Apache resolves `localhost` to ::1, which is why 1.0.0 got a 503), plus fastCgi as above |
+
+* The package‑root `ipscan` is a ~1 KB **PIE launcher** (freestanding asm, no
+  libc, no relocations; `launcher/`) that `execve()`s the static Go daemon at
+  `bin/ipscan` keeping PID/argv/env. Classic start scripts refuse static Go
+  binaries (ET_EXEC) and Go can only make a PIE for arm/mips with cgo — this
+  is the SSH Jump (Legacy) trick, now used for all architectures. If the exec
+  fails the launcher writes `ipscan launcher: cannot exec …` to the log.
+* The daemon opens every transport that applies (TCP 127.0.0.1/::1:2202,
+  FastCGI on `$FCGI_SOCKET_NAME`, or the classic Unix socket) and logs each
+  `listening on …` line; the page probes `api/` then `control.cgi` and keeps
+  the one that answers.
+* `package.conf` asks for embedded SDK 2.0 (so AXIS OS 9 accepts it);
+  `manifest.json` uses schema 1.3.0 (AXIS OS 10.9+ validates it; the
+  architecture field is filled per package).
 
 ## What it shows (per host)
 
@@ -45,16 +78,16 @@ another browser) shows the running / last scan.
 
 ## 1. Install
 
-### AXIS OS 10+ (aarch64 / armv7hf)
-
-Same as SSH Jump:
+### aarch64 / armv7hf (web UI, AXIS OS 9 – 12)
 
 1. Camera web UI → **Apps**. On AXIS OS 11/12 enable **"Allow unsigned apps"**
    (or sign the `.eap`, see SSH Jump's README §5 — identical procedure; AXIS
    OS 13+ requires signing).
-2. **Add app** → upload `ipscan_1_0_1_aarch64.eap` (ARTPEC‑8+) or
-   `ipscan_1_0_1_armv7hf.eap` (ARTPEC‑6/7). If unsure, try aarch64 first.
-3. **Enable** the app, then open it → **Open** / settings page.
+2. **Add app** → upload `ipscan_1_1_0_aarch64.eap` (ARTPEC‑8+) or
+   `ipscan_1_1_0_armv7hf.eap` (ARTPEC‑6/7). A wrong architecture is rejected
+   at upload, so if unsure just try.
+3. **Enable/Start** the app, then **Open**. On AXIS OS 9.x/10.0–10.5 the
+   install script also restarts Apache — wait ~10 s before opening the page.
 
 ### ARTPEC‑4 / ARTPEC‑5 (classic ACAP, over SSH)
 
@@ -62,11 +95,11 @@ Exactly like SSH Jump (Legacy) — the web‑UI installer can't install on this
 hardware (ACAP framework 2.x):
 
 ```bash
-scp dist/ipscan_1_0_1_artpec5_mipsisa32r2el.eap legacy/install-dev.sh root@<camera>:/tmp/
+scp dist/ipscan_1_1_0_artpec5_mipsisa32r2el.eap packaging/install-dev.sh root@<camera>:/tmp/
 ssh root@<camera> 'CAM_PASS=<root password> sh /tmp/install-dev.sh'
 ```
 
-Then open `http://<camera>/local/ipscan/config.html` (admin login). The package
+Then open `http://<camera>/local/ipscan/index.html` (admin login). The package
 is self‑configuring (`postinstall.sh` wires the `mod_proxy_http` route and
 restarts Apache), so a plain `install-package.sh install` also works.
 
@@ -99,8 +132,8 @@ Ping column: they exist but drop ping and every probed port.
 
 ## 3. Security / auto‑stop
 
-- The backend listens only on `127.0.0.1:2202` (AXIS OS 10+) or a local Unix
-  socket (classic); all access goes through the camera's Apache with Axis
+- The backend listens only on loopback (`127.0.0.1`/`::1` port 2202) and local
+  Unix sockets; all access goes through the camera's Apache with Axis
   authentication and TLS, **admin only**.
 - One scan at a time; results live in memory only.
 - **30 minutes without activity** (no scan running, no start/stop/export) → the
@@ -115,8 +148,8 @@ Environment variables (for development / advanced use):
 | Var | Default | Meaning |
 |---|---|---|
 | `IPSCAN_IDLE_TIMEOUT` | `30m` | idle time before auto‑stop |
-| `IPSCAN_LISTEN` | `127.0.0.1:2202` (modern) | serve HTTP on TCP (forces TCP on a legacy build too) |
-| `IPSCAN_SOCKET` | `/var/run/http/ipscan/http` | legacy Unix socket (HTTP + FastCGI) |
+| `IPSCAN_LISTEN` | `127.0.0.1:2202` + `[::1]:2202` | replace the loopback TCP listeners (debugging) |
+| `IPSCAN_SOCKET` | `/var/run/http/ipscan/http` | classic Unix socket (HTTP + FastCGI), used when `FCGI_SOCKET_NAME` is unset |
 | `IPSCAN_ICMP` | auto | `raw`, `dgram` or `off` |
 | `IPSCAN_LOG` | `/tmp/ipscan.log` | log file (also mirrored to the Axis system log) |
 | `IPSCAN_DEBUG` | — | `1` = verbose request tracing |
@@ -125,8 +158,8 @@ Environment variables (for development / advanced use):
 ## 4. SSH Jump integration
 
 IP Scan links port 22 (and 2222) to
-`/local/sshjump/index.html?host=<ip>&port=<port>` (or `config.html` on
-ARTPEC‑4/5). For SSH Jump to **pre‑fill** the host, apply the small patch in
+`/local/sshjump/index.html?host=<ip>&port=<port>` (or `config.html`, SSH Jump
+Legacy's page name — whichever exists). For SSH Jump to **pre‑fill** the host, apply the small patch in
 [`integration/`](integration/) to each SSH Jump repo and rebuild:
 
 ```bash
@@ -138,21 +171,26 @@ It only reads `host`, `port` and `user` from the URL and fills the form;
 nothing is submitted and no credentials ever travel in the URL. Without the
 patch the link still opens SSH Jump, just with an empty form.
 
+> **SSH Jump on AXIS OS 11/12:** the 503 that limits SSH Jump to "AXIS OS < 11"
+> is very likely the same `localhost` → `::1` issue: SSH Jump listens only on
+> `127.0.0.1:2201`. Listening on `[::1]:2201` too (as IP Scan does) should fix it.
+
 ## 5. Build
 
 ```bash
-./build.sh            # all four .eap → dist/
-./build.sh modern     # aarch64 + armv7hf
-./build.sh legacy     # artpec4 + artpec5
-./build.sh test       # go vet + unit tests + qemu smoke test of each binary
+./build.sh                 # all four .eap → dist/
+./build.sh aarch64|armv7hf|artpec4|artpec5
+./build.sh test            # go vet + unit tests + qemu tests of launchers and daemons
 ```
 
-Requirements: **Go ≥ 1.24.1** (the MIPS build needs the golang/go#71591 fix;
-the modern builds are fine with Go ≥ 1.21). Standard library only — no
-third‑party Go modules, no network needed. For the legacy packages also
-`gcc-mipsel-linux-gnu` (PIE launcher); `qemu-user-static` for `./build.sh test`.
+Requirements: **Go ≥ 1.24.1** (the MIPS build needs the golang/go#71591 fix).
+Standard library only — no third‑party Go modules, no network needed. Cross
+gcc for the launchers (Debian/Ubuntu): `gcc-aarch64-linux-gnu
+gcc-arm-linux-gnueabihf gcc-mipsel-linux-gnu`. For `./build.sh test` also
+`qemu-user-static libc6-arm64-cross libc6-armhf-cross` and `curl`.
 
-With the official Axis SDK (modern packages only):
+With the official Axis SDK (produces a manifest‑only package, i.e. AXIS OS
+10.6+ — `build.sh` is the one that covers AXIS OS 9):
 
 ```bash
 DOCKER_BUILDKIT=1 docker build --build-arg GOARCH=arm64 --build-arg SDK_ARCH=aarch64 -o type=local,dest=./out .
@@ -169,14 +207,16 @@ python3 tools/gen-oui.py package/index.json app/oui.txt.gz
 
 ```
 app/
-  main.go        HTTP API, both transports (TCP / Unix HTTP+FastCGI), idle watchdog
+  main.go        HTTP API, transports (TCP / FastCGI / Unix HTTP+FastCGI), idle watchdog
   scan.go        range/port parsing, scan engine, per-host probing, CSV
   icmp.go        ICMP echo via raw or unprivileged ping socket
   probes.go      ARP table, NetBIOS node status, web detect, local networks, OUI lookup
   oui.txt.gz     embedded MAC vendor table
-  html/index.html  the UI (served as config.html in the classic packages)
+  html/index.html  the UI
   manifest.json, Makefile, LICENSE
-legacy/          package.conf, cgi.txt, zz_ipscan_proxy.conf, postinstall.sh, install-dev.sh
+launcher/        PIE launcher stubs: launch-aarch64.S, launch-armv7hf.S, gen-mips.py
+packaging/       package.conf.in, cgi.txt, param.conf, postinstall.sh,
+                 zz_ipscan_proxy.conf, install-dev.sh (SSH install, ARTPEC-4/5)
 integration/     SSH Jump URL-prefill patches
 tools/gen-oui.py MAC vendor table generator
 build.sh, Dockerfile
@@ -185,8 +225,9 @@ dist/            prebuilt .eap packages
 
 ## API (for scripting)
 
-Modern: `https://<camera>/local/ipscan/api/<op>` · Classic:
-`http://<camera>/local/ipscan/control.cgi?op=<op>` (admin auth either way).
+`https://<camera>/local/ipscan/api/<op>` (AXIS OS 11.8+) or
+`https://<camera>/local/ipscan/control.cgi?op=<op>` (all other versions,
+and 10.6+ too) — admin auth either way.
 
 | op | method | |
 |---|---|---|

@@ -48,6 +48,20 @@ func arpLookup(ip string) string {
 	return ""
 }
 
+// localMAC returns the MAC of this device's own interface holding ip, or "".
+func localMAC(ip string) string {
+	ifs, _ := net.Interfaces()
+	for _, ifc := range ifs {
+		addrs, _ := ifc.Addrs()
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok && n.IP.String() == ip && len(ifc.HardwareAddr) == 6 {
+				return strings.ToUpper(ifc.HardwareAddr.String())
+			}
+		}
+	}
+	return ""
+}
+
 // ---- NetBIOS node status (UDP 137, like `nmblookup -A`) --------------------------
 
 type nbInfo struct {

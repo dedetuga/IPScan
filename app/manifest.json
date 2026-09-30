@@ -5,7 +5,7 @@
       "appName": "ipscan",
       "friendlyName": "IP Scan",
       "vendor": "Filipe Brigido 2026",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "embeddedSdkVersion": "3.0",
       "runMode": "once"
     },
@@ -21,7 +21,7 @@
       "httpConfig": [
         {
           "name": "control.cgi",
-          "type": "transferCgi",
+          "type": "fastCgi",
           "access": "admin"
         }
       ]

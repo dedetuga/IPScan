@@ -584,6 +584,9 @@ func (s *Scan) probeHost(u uint32) *Host {
 	// target's MAC; a complete ARP entry means the host answered even if it
 	// firewalls ICMP and every TCP port.
 	mac := arpLookup(h.IP)
+	if mac == "" {
+		mac = localMAC(h.IP) // the camera itself has no ARP entry for its own IP
+	}
 	if !h.Alive && mac != "" {
 		h.Alive, h.Via = true, "arp"
 	}
