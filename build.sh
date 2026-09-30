@@ -22,7 +22,7 @@ set -euo pipefail
 APP=ipscan
 FRIENDLY="IP Scan"
 VENDOR="Filipe Brigido 2026"
-VER_MAJOR=1; VER_MINOR=0; VER_MICRO=0
+VER_MAJOR=1; VER_MINOR=0; VER_MICRO=1
 VERSION="${VER_MAJOR}.${VER_MINOR}.${VER_MICRO}"
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"

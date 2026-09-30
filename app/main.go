@@ -33,6 +33,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	rdebug "runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -41,7 +42,7 @@ import (
 
 // Build-time settings (-ldflags "-X main.version=... -X main.flavor=legacy").
 var (
-	version = "1.0.0"
+	version = "1.0.1"
 	flavor  = "modern" // "modern" or "legacy"
 )
 
@@ -97,6 +98,9 @@ func emit(sev byte, format string, a ...interface{}) {
 
 func inf(format string, a ...interface{})   { emit('I', format, a...) }
 func warnf(format string, a ...interface{}) { emit('W', format, a...) }
+func errf(format string, a ...interface{})  { emit('E', format, a...) }
+
+func stackTrace() string { return string(rdebug.Stack()) }
 func dbg(format string, a ...interface{}) {
 	if debug {
 		emit('D', format, a...)
@@ -377,15 +381,72 @@ func main() {
 		})
 	}
 
-	if tcpAddr == "" && flavor == "modern" {
-		tcpAddr = "127.0.0.1:2202"
-	}
-	var err error
+	h = safe(h)
+	inf("runtime: uid=%d gid=%d FCGI_SOCKET_NAME=%q", os.Getuid(), os.Getgid(), os.Getenv("FCGI_SOCKET_NAME"))
+
+	// Every transport that applies is started; the app only gives up if none
+	// of them could be opened. Which one the camera's Apache uses depends on
+	// the AXIS OS version:
+	//   modern  -> manifest reverseProxy  (api/<op>  -> http://localhost:2202)
+	//              manifest transferCgi   (control.cgi -> FastCGI on $FCGI_SOCKET_NAME)
+	//   legacy  -> mod_proxy_http         (control.cgi -> unix socket, HTTP or FastCGI)
+	var addrs []string
 	if tcpAddr != "" {
-		inf("listening on tcp:%s", tcpAddr)
-		err = http.ListenAndServe(tcpAddr, h)
-	} else {
-		err = serveUnixMux(socketPath, h)
+		addrs = []string{tcpAddr}
+	} else if flavor == "modern" {
+		// "localhost" may resolve to ::1 first on newer AXIS OS; answer on both.
+		addrs = []string{"127.0.0.1:2202", "[::1]:2202"}
 	}
-	log.Fatalf("server error: %v", err)
+	errs := make(chan error, 4)
+	started := 0
+	for _, a := range addrs {
+		ln, err := net.Listen("tcp", a)
+		if err != nil {
+			if strings.HasPrefix(a, "[::1]") {
+				inf("IPv6 loopback not available (%v) — IPv4 only", err)
+			} else {
+				errf("cannot listen on tcp:%s: %v", a, err)
+			}
+			continue
+		}
+		inf("listening on tcp:%s (HTTP)", a)
+		started++
+		go func(ln net.Listener) { errs <- http.Serve(ln, h) }(ln)
+	}
+	if fs := os.Getenv("FCGI_SOCKET_NAME"); fs != "" && flavor == "modern" {
+		_ = os.Remove(fs)
+		if ln, err := net.Listen("unix", fs); err != nil {
+			errf("cannot listen on FastCGI socket %s: %v", fs, err)
+		} else {
+			_ = os.Chmod(fs, 0777)
+			inf("listening on unix:%s (FastCGI, control.cgi)", fs)
+			started++
+			go func() { errs <- fcgi.Serve(ln, h) }()
+		}
+	}
+	if flavor == "legacy" && tcpAddr == "" {
+		started++
+		go func() { errs <- serveUnixMux(socketPath, h) }()
+	}
+	if started == 0 {
+		errf("no transport could be opened — exiting")
+		os.Exit(1)
+	}
+	err := <-errs
+	errf("server error: %v", err)
+	os.Exit(1)
+}
+
+// safe turns a panic inside a request into a logged 500 instead of taking the
+// whole daemon down (net/http recovers per request, net/http/fcgi does not).
+func safe(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if v := recover(); v != nil {
+				errf("panic serving %s: %v\n%s", r.URL.RequestURI(), v, stackTrace())
+				http.Error(w, "internal error", 500)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
 }

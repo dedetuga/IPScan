@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install IP Scan (classic ACAP, ARTPEC-4/5 MIPS). Run as root on the camera:
-#   scp ipscan_1_0_0_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
+#   scp ipscan_1_0_1_artpec5_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
 #   ssh root@CAM 'sh /tmp/install-dev.sh'
 #
 # How it works (each point solved a real blocker on AXIS OS 9.70 / ARTPEC-5):
@@ -16,7 +16,7 @@
 #    tracing. Logs go to /tmp/ipscan.log.
 APP=ipscan
 # .eap path: pass as $1, else auto-detect the artpec4/artpec5 build in /tmp
-EAP="${1:-$(ls -1 /tmp/${APP}_1_0_0_*mipsisa32r2el.eap 2>/dev/null | head -1)}"
+EAP="${1:-$(ls -1 /tmp/${APP}_*mipsisa32r2el.eap 2>/dev/null | head -1)}"
 [ -n "$EAP" ] && [ -f "$EAP" ] || { echo "no .eap found in /tmp (pass its path as an argument)"; exit 1; }
 echo "using package: $EAP"
 PKG=/usr/local/packages/$APP

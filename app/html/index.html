@@ -169,11 +169,19 @@
   // Modern ACAP (index.html): reverse proxy at api/<op>.
   // Classic ACAP on ARTPEC-4/5 (config.html): one proxied control.cgi?op=<op>.
   var dir = location.pathname.replace(/[^/]*$/, "");
+  // Which route reaches the daemon depends on the AXIS OS version, so the
+  // page probes both at startup (see info()) and keeps the one that answers.
   var legacy = /config\.html$/.test(location.pathname);
+  var useCgi = legacy;
   function ep(op, qs){
-    var u = legacy ? dir + "control.cgi?op=" + op : dir + "api/" + op;
-    if(qs) u += (legacy ? "&" : "?") + qs;
+    var u = useCgi ? dir + "control.cgi?op=" + op : dir + "api/" + op;
+    if(qs) u += (useCgi ? "&" : "?") + qs;
     return u;
+  }
+  function downMsg(code){
+    return "The IP Scan service on the camera is not answering" + (code ? " (HTTP " + code + ")" : "") +
+      ". In Apps, make sure IP Scan is switched on (Running), then reload this page. " +
+      "If it keeps stopping, see Apps → IP Scan → ⋮ → App log.";
   }
 
   // ---- persisted form (per-browser convenience only) ----
@@ -394,7 +402,10 @@
       r = await fetch(ep("start"), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
       try{ d = await r.json(); }catch(e){}
     }catch(e){ setStatus("Network error — is the app running?", "err"); return; }
-    if(!r.ok || d.error){ setStatus(d.error || ("Failed (" + r.status + ")."), "err"); return; }
+    if(!r.ok || d.error){
+      setStatus(d.error || (r.status >= 502 && r.status <= 504 ? downMsg(r.status) : "Failed (" + r.status + ")."), "err");
+      return;
+    }
     hosts = []; next = 0; render();
     setRunning(true);
     setStatus("Scanning " + d.total + " address" + (d.total===1?"":"es") + " …");
@@ -411,8 +422,20 @@
   syncPreset(); // a named preset wins; "custom" keeps the saved port list
 
   var idleTmo = 1800, idleAt = 0, idleSeen = 0;
+  var lastCode = 0;
+  function getInfo(){
+    return fetch(ep("info"), {cache:"no-store"}).then(function(r){
+      lastCode = r.status;
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
   function info(first){
-    return fetch(ep("info"), {cache:"no-store"}).then(function(r){ return r.json(); }).then(function(j){
+    var p = getInfo();
+    if(first){ // fall back to the other route once (api/ <-> control.cgi)
+      p = p.catch(function(){ useCgi = !useCgi; return getInfo().catch(function(e){ useCgi = legacy; throw e; }); });
+    }
+    return p.then(function(j){
       idleTmo = j.idleTimeout; idleSeen = j.idleSeconds; idleAt = Date.now();
       var m = Math.round(idleTmo/60); $("tmo").textContent = m + " min";
       $("icmp").textContent = j.icmp === "off" ? "TCP + ARP (ICMP not permitted)" : "ICMP ("+j.icmp+") + TCP + ARP";
@@ -428,7 +451,10 @@
         });
       }
       tick();
-    }).catch(function(){ $("idle").textContent = "scanner stopped — re-enable the app"; });
+    }).catch(function(){
+      $("idle").textContent = "scanner stopped — re-enable the app";
+      if(first) setStatus(downMsg(lastCode), "err");
+    });
   }
   function tick(){
     if(!idleAt) return;

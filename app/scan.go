@@ -382,7 +382,7 @@ func (s *Scan) run() {
 		go func() {
 			defer wg.Done()
 			for u := range jobs {
-				h := s.probeHost(u)
+				h := s.safeProbe(u)
 				if s.ctx.Err() != nil && !h.Alive {
 					continue // cancelled mid-probe: result is meaningless
 				}
@@ -650,6 +650,18 @@ func (s *Scan) probeHost(u uint32) *Host {
 		h.Name = h.NetBIOS
 	}
 	return h
+}
+
+// safeProbe keeps one misbehaving host (or probe bug) from killing the daemon:
+// the panic is logged with its stack and the host is reported as not scanned.
+func (s *Scan) safeProbe(u uint32) (h *Host) {
+	defer func() {
+		if v := recover(); v != nil {
+			errf("panic probing %s: %v\n%s", u2ip(u), v, stackTrace())
+			h = &Host{IP: u2ip(u).String(), u: u}
+		}
+	}()
+	return s.probeHost(u)
 }
 
 func contains(a []int, v int) bool {

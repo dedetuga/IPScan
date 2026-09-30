@@ -16,10 +16,10 @@ One source tree builds **all four** packages:
 
 | Package | Cameras | Framework |
 |---|---|---|
-| `ipscan_1_0_0_aarch64.eap` | ARTPEC‑8 and newer | AXIS OS 10+ (`manifest.json`) |
-| `ipscan_1_0_0_armv7hf.eap` | ARTPEC‑6 / ARTPEC‑7 | AXIS OS 10+ (`manifest.json`) |
-| `ipscan_1_0_0_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | classic ACAP (`package.conf`), AXIS OS 9.x |
-| `ipscan_1_0_0_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | classic ACAP (`package.conf`), AXIS OS 9.x |
+| `ipscan_1_0_1_aarch64.eap` | ARTPEC‑8 and newer | AXIS OS 10+ (`manifest.json`) |
+| `ipscan_1_0_1_armv7hf.eap` | ARTPEC‑6 / ARTPEC‑7 | AXIS OS 10+ (`manifest.json`) |
+| `ipscan_1_0_1_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | classic ACAP (`package.conf`), AXIS OS 9.x |
+| `ipscan_1_0_1_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | classic ACAP (`package.conf`), AXIS OS 9.x |
 
 Prebuilt packages are in [`dist/`](dist/).
 
@@ -52,8 +52,8 @@ Same as SSH Jump:
 1. Camera web UI → **Apps**. On AXIS OS 11/12 enable **"Allow unsigned apps"**
    (or sign the `.eap`, see SSH Jump's README §5 — identical procedure; AXIS
    OS 13+ requires signing).
-2. **Add app** → upload `ipscan_1_0_0_aarch64.eap` (ARTPEC‑8+) or
-   `ipscan_1_0_0_armv7hf.eap` (ARTPEC‑6/7). If unsure, try aarch64 first.
+2. **Add app** → upload `ipscan_1_0_1_aarch64.eap` (ARTPEC‑8+) or
+   `ipscan_1_0_1_armv7hf.eap` (ARTPEC‑6/7). If unsure, try aarch64 first.
 3. **Enable** the app, then open it → **Open** / settings page.
 
 ### ARTPEC‑4 / ARTPEC‑5 (classic ACAP, over SSH)
@@ -62,7 +62,7 @@ Exactly like SSH Jump (Legacy) — the web‑UI installer can't install on this
 hardware (ACAP framework 2.x):
 
 ```bash
-scp dist/ipscan_1_0_0_artpec5_mipsisa32r2el.eap legacy/install-dev.sh root@<camera>:/tmp/
+scp dist/ipscan_1_0_1_artpec5_mipsisa32r2el.eap legacy/install-dev.sh root@<camera>:/tmp/
 ssh root@<camera> 'CAM_PASS=<root password> sh /tmp/install-dev.sh'
 ```
 
