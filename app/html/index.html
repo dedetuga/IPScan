@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IP Scan</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212a; --border:#2a2f3a; --fg:#e6e6e6;
+    --muted:#9aa4b2; --accent:#ffcc33; --ok:#4caf50; --err:#ff5252; --link:#7cb7ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;
+    background:var(--panel);border-bottom:1px solid var(--border)}
+  header h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  header .sp{flex:1}
+  #idle{font:12px var(--mono);color:var(--muted);text-align:right}
+  .wrap{display:grid;grid-template-columns:320px 1fr;height:calc(100vh - 47px)}
+  @media(max-width:860px){.wrap{grid-template-columns:1fr;height:auto}}
+  form{padding:14px;background:var(--panel);border-right:1px solid var(--border);overflow:auto}
+  @media(max-width:860px){form{border-right:0;border-bottom:1px solid var(--border)}}
+  label{display:block;margin:10px 0 4px;color:var(--muted);font-size:12px}
+  input,select,textarea{width:100%;padding:8px 10px;background:var(--bg);
+    color:var(--fg);border:1px solid var(--border);border-radius:6px;font:13px var(--mono)}
+  textarea{resize:vertical;min-height:58px}
+  input:focus,select:focus,textarea:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+  .row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{font:11px var(--mono);padding:3px 8px;border:1px solid var(--border);border-radius:999px;
+    background:var(--bg);color:var(--muted);cursor:pointer}
+  .chip:hover{color:var(--fg);border-color:var(--muted)}
+  .checks{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px}
+  .checks label{display:flex;align-items:center;gap:6px;margin:0;color:var(--fg);font-size:13px;cursor:pointer}
+  .checks input{width:auto;margin:0;accent-color:var(--accent)}
+  button{font:inherit}
+  #go{margin-top:14px;width:100%;padding:10px;border:0;border-radius:6px;
+    background:var(--accent);color:#111;font-weight:700;cursor:pointer}
+  #go.stop{background:var(--err);color:#fff}
+  .prog{margin-top:12px;height:6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+  .prog>div{height:100%;width:0;background:var(--accent);transition:width .3s}
+  .stats{margin-top:6px;font:12px var(--mono);color:var(--muted)}
+  .hint{margin-top:12px;font-size:11px;color:var(--muted)}
+  .badge{font:11px var(--mono);padding:1px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
+  .res{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 12px;
+    background:var(--panel);border-bottom:1px solid var(--border)}
+  .bar input[type=search]{width:220px;padding:6px 10px}
+  .bar label{display:flex;align-items:center;gap:6px;margin:0;color:var(--fg);font-size:13px;cursor:pointer}
+  .bar label input{width:auto;margin:0;accent-color:var(--accent)}
+  .bar .sp{flex:1}
+  .btn{padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);
+    color:var(--fg);cursor:pointer;font-size:13px}
+  .btn:hover{border-color:var(--muted)}
+  .tbl{flex:1;overflow:auto;min-height:0}
+  @media(max-width:860px){.tbl{max-height:75vh}}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:600;color:var(--muted);
+    font-size:12px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
+  th.sorted{color:var(--accent)}
+  td{padding:6px 10px;border-bottom:1px solid #20242d;vertical-align:top}
+  tr:hover td{background:#141821}
+  tr.dead td{color:#5d6571}
+  td.ip,td.mono{font-family:var(--mono);white-space:nowrap}
+  td.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+  td.vendor{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+  td.web{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#3a3f4a}
+  .dot.icmp{background:var(--ok)} .dot.tcp{background:#2fa3ff} .dot.udp{background:#2fa3ff} .dot.arp{background:#e0a100}
+  .pt{display:inline-block;font:11px var(--mono);padding:0 6px;margin:1px 3px 1px 0;border-radius:4px;
+    border:1px solid var(--border);background:var(--bg);color:var(--fg);text-decoration:none}
+  a.pt:hover{border-color:var(--accent);color:var(--accent)}
+  a.pt.ssh{border-color:#6b5a1d;color:var(--accent)}
+  a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+  .empty{padding:40px 16px;text-align:center;color:var(--muted)}
+  .status{padding:8px 12px;font:12px var(--mono);border-top:1px solid var(--border);background:var(--panel)}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  .legend{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📡 IP Scan <span style="color:var(--muted);font-weight:400">via Axis camera</span></h1>
+  <div class="sp"></div>
+  <div id="idle">—</div>
+</header>
+
+<div class="wrap">
+  <form id="f" autocomplete="off">
+    <label for="targets">IP range</label>
+    <textarea id="targets" rows="2" spellcheck="false" placeholder="192.168.1.0/24"></textarea>
+    <div class="chips" id="nets"></div>
+
+    <label for="preset">Ports</label>
+    <select id="preset">
+      <option value="22,23,80,443,554,3389,8000,8080,8443">Common</option>
+      <option value="80,443,554,8000,8080,8443,8554,37777,34567,5000,5001">Cameras / NVR / VMS</option>
+      <option value="22,23,80,443,8080,8443,8291,8728,8880,10001">Network gear (switch, AP, router)</option>
+      <option value="80,81,443,8000,8008,8080,8081,8443,8888">Web servers</option>
+      <option value="">None (ping sweep only)</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <input id="ports" style="margin-top:6px" spellcheck="false" placeholder="22,80,443,8000-8100">
+
+    <div class="row">
+      <div><label for="threads">Threads</label><input id="threads" inputmode="numeric" value="64"></div>
+      <div><label for="timeout">Timeout (ms)</label><input id="timeout" inputmode="numeric" value="1000"></div>
+    </div>
+
+    <div class="checks">
+      <label><input type="checkbox" id="dns" checked> Hostname (DNS)</label>
+      <label><input type="checkbox" id="netbios" checked> NetBIOS</label>
+      <label><input type="checkbox" id="web" checked> Web detect</label>
+    </div>
+
+    <button id="go" type="submit">Start scan</button>
+    <div class="prog"><div id="pbar"></div></div>
+    <div class="stats" id="stats">—</div>
+
+    <div class="hint">
+      <div class="legend" style="margin-bottom:8px">
+        <span><i class="dot icmp"></i>ping</span><span><i class="dot tcp"></i>TCP/UDP reply</span>
+        <span><i class="dot arp"></i>ARP only (firewalled)</span><span><i class="dot"></i>no reply</span>
+      </div>
+      Liveness: <span class="badge" id="icmp">…</span>. Hosts that drop ping are still found
+      through TCP knocks and the ARP table on the camera's own subnet.<br><br>
+      The app stops itself after <b id="tmo">30 min</b> without a scan or other action.
+      Only scan networks you own or are authorised to administer.
+    </div>
+  </form>
+
+  <div class="res">
+    <div class="bar">
+      <input type="search" id="q" placeholder="Filter (IP, name, vendor, port…)">
+      <label><input type="checkbox" id="showDead"> Show dead</label>
+      <div class="sp"></div>
+      <span class="stats" id="count" style="margin:0"></span>
+      <button type="button" class="btn" id="csv">Export CSV</button>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr>
+          <th data-k="alive" style="width:26px"></th>
+          <th data-k="ip">IP</th>
+          <th data-k="rtt" style="text-align:right">Ping</th>
+          <th data-k="name">Hostname</th>
+          <th data-k="mac">MAC address</th>
+          <th data-k="vendor">Vendor</th>
+          <th data-k="ports">Open ports</th>
+          <th data-k="web">Web</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty">No results yet. Pick a range and start a scan.</div>
+    </div>
+    <div id="status" class="status">Ready.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  // Modern ACAP (index.html): reverse proxy at api/<op>.
+  // Classic ACAP on ARTPEC-4/5 (config.html): one proxied control.cgi?op=<op>.
+  var dir = location.pathname.replace(/[^/]*$/, "");
+  var legacy = /config\.html$/.test(location.pathname);
+  function ep(op, qs){
+    var u = legacy ? dir + "control.cgi?op=" + op : dir + "api/" + op;
+    if(qs) u += (legacy ? "&" : "?") + qs;
+    return u;
+  }
+
+  // ---- persisted form (per-browser convenience only) ----
+  var FIELDS = ["targets","preset","ports","threads","timeout","dns","netbios","web","showDead"];
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem("ipscan.form") || "{}");
+      FIELDS.forEach(function(k){
+        if(!(k in s)) return;
+        var el = $(k);
+        if(el.type === "checkbox") el.checked = !!s[k]; else el.value = s[k];
+      });
+      return Object.keys(s).length > 0;
+    }catch(e){ return false; }
+  }
+  function save(){
+    try{
+      var s = {};
+      FIELDS.forEach(function(k){ var el=$(k); s[k] = el.type==="checkbox" ? el.checked : el.value; });
+      localStorage.setItem("ipscan.form", JSON.stringify(s));
+    }catch(e){}
+  }
+
+  function syncPreset(){
+    var v = $("preset").value;
+    if(v !== "custom"){ $("ports").value = v; }
+    $("ports").style.display = "block";
+  }
+  $("preset").addEventListener("change", function(){ syncPreset(); if($("preset").value==="custom") $("ports").focus(); save(); });
+  $("ports").addEventListener("input", function(){
+    var v = $("ports").value, opts = $("preset").options, hit = "custom";
+    for(var i=0;i<opts.length;i++){ if(opts[i].value === v){ hit = v; break; } }
+    $("preset").value = hit;
+  });
+
+  function setStatus(msg, cls){ var s=$("status"); s.textContent = msg; s.className = "status" + (cls ? " "+cls : ""); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function ipnum(ip){ var p = ip.split("."); return ((+p[0])*16777216)+((+p[1])*65536)+((+p[2])*256)+(+p[3]); }
+  function fmtDur(ms){ var s = Math.round(ms/1000); return s < 60 ? s+"s" : Math.floor(s/60)+"m"+("0"+(s%60)).slice(-2)+"s"; }
+
+  // ---- SSH Jump integration ----
+  // If SSH Jump is installed on this camera, port 22 opens it pre-filled.
+  var sshURL = null;
+  (function findSSHJump(){
+    var cands = ["/local/sshjump/index.html", "/local/sshjump/config.html"];
+    if(legacy) cands.reverse();
+    (function next(i){
+      if(i >= cands.length) return;
+      fetch(cands[i], {method:"GET", cache:"no-store"}).then(function(r){
+        if(r.ok){ sshURL = cands[i]; render(); } else next(i+1);
+      }).catch(function(){ next(i+1); });
+    })(0);
+  })();
+
+  var WEBTLS = {443:1, 8443:1, 4443:1, 9443:1, 5001:1, 7443:1};
+  var WEBPORTS = {80:1,81:1,88:1,443:1,5000:1,5001:1,7443:1,8000:1,8008:1,8080:1,8081:1,8443:1,8888:1,9443:1,4443:1};
+  function portChip(ip, p){
+    if(p === 22 || p === 2222){
+      if(sshURL){
+        return '<a class="pt ssh" target="_blank" rel="noopener" title="Open in SSH Jump" href="'+
+          esc(sshURL+"?host="+encodeURIComponent(ip)+"&port="+p)+'">'+p+' ⟶ SSH</a>';
+      }
+      return '<span class="pt" title="Install SSH Jump on this camera for one-click SSH">'+p+'</span>';
+    }
+    if(WEBPORTS[p]){
+      var sch = WEBTLS[p] ? "https" : "http";
+      var u = sch + "://" + ip + ((sch==="http"&&p===80)||(sch==="https"&&p===443) ? "" : ":"+p) + "/";
+      return '<a class="pt" target="_blank" rel="noopener" title="Open (needs a route from your browser to the LAN)" href="'+esc(u)+'">'+p+'</a>';
+    }
+    return '<span class="pt">'+p+'</span>';
+  }
+
+  // ---- results state + rendering ----
+  var hosts = [];          // all hosts of the current scan (alive and dead)
+  var scanId = null, next = 0, running = false;
+  var sortKey = "ip", sortDir = 1;
+  var renderQueued = false;
+
+  function render(){
+    if(renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(function(){ renderQueued = false; doRender(); });
+  }
+
+  function cmp(a, b){
+    var k = sortKey, x, y;
+    switch(k){
+      case "ip": x = ipnum(a.ip); y = ipnum(b.ip); break;
+      case "alive": x = a.alive?1:0; y = b.alive?1:0; break;
+      case "rtt": x = a.rtt || 1e9; y = b.rtt || 1e9; break;
+      case "ports": x = (a.ports||[]).length; y = (b.ports||[]).length; break;
+      default: x = (a[k]||"").toLowerCase(); y = (b[k]||"").toLowerCase();
+        if(x === "" && y !== "") return 1; if(y === "" && x !== "") return -1;
+    }
+    if(x < y) return -sortDir; if(x > y) return sortDir;
+    return ipnum(a.ip) - ipnum(b.ip);
+  }
+
+  var MAXROWS = 5000;
+  function doRender(){
+    var q = $("q").value.trim().toLowerCase(), showDead = $("showDead").checked;
+    var list = hosts.filter(function(h){
+      if(!h.alive && !showDead) return false;
+      if(!q) return true;
+      var hay = [h.ip, h.name, h.netbios, h.group, h.mac, h.vendor, h.web, (h.ports||[]).join(" ")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+    list.sort(cmp);
+    var alive = 0; hosts.forEach(function(h){ if(h.alive) alive++; });
+    $("count").textContent = list.length + " shown · " + alive + " alive";
+    var html = [];
+    var n = Math.min(list.length, MAXROWS);
+    for(var i = 0; i < n; i++){
+      var h = list[i];
+      var via = {icmp:"ping reply", tcp:"TCP reply", udp:"NetBIOS reply", arp:"ARP only — host drops ping and probed ports"}[h.via] || "no reply";
+      var name = esc(h.name || "");
+      if(h.netbios && h.netbios !== h.name) name += ' <span style="color:var(--muted)">('+esc(h.netbios)+')</span>';
+      if(h.group) name += ' <span style="color:var(--muted)" title="Workgroup / domain">· '+esc(h.group)+'</span>';
+      var ports = (h.ports||[]).map(function(p){ return portChip(h.ip, p); }).join("");
+      var web = h.web ? (h.webUrl ? '<a target="_blank" rel="noopener" href="'+esc(h.webUrl)+'" title="'+esc(h.web)+'">'+esc(h.web)+'</a>' : esc(h.web)) : "";
+      html.push('<tr class="'+(h.alive?"":"dead")+'">'+
+        '<td title="'+esc(via)+'"><i class="dot '+esc(h.alive?h.via:"")+'"></i></td>'+
+        '<td class="ip">'+esc(h.ip)+'</td>'+
+        '<td class="num">'+(h.alive ? (h.rtt ? h.rtt+" ms" : (h.via==="arp"?"arp":"—")) : "")+'</td>'+
+        '<td>'+name+'</td>'+
+        '<td class="mono">'+esc(h.mac||"")+'</td>'+
+        '<td class="vendor" title="'+esc(h.vendor||"")+'">'+esc(h.vendor||"")+'</td>'+
+        '<td>'+ports+'</td>'+
+        '<td class="web">'+web+'</td></tr>');
+    }
+    if(list.length > MAXROWS) html.push('<tr><td colspan="8" style="color:var(--muted)">… '+(list.length-MAXROWS)+' more rows — narrow with the filter or export CSV.</td></tr>');
+    $("rows").innerHTML = html.join("");
+    $("empty").style.display = list.length ? "none" : "block";
+    if(!list.length && hosts.length) $("empty").textContent = alive ? "No hosts match the filter." : "No live hosts found (yet).";
+    document.querySelectorAll("th").forEach(function(th){
+      th.classList.toggle("sorted", th.dataset.k === sortKey);
+    });
+  }
+
+  document.querySelectorAll("th").forEach(function(th){
+    th.addEventListener("click", function(){
+      var k = th.dataset.k;
+      if(sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = (k==="alive"||k==="ports") ? -1 : 1; }
+      render();
+    });
+  });
+  $("q").addEventListener("input", render);
+  $("showDead").addEventListener("change", function(){ save(); render(); });
+
+  function showProgress(st){
+    var pct = st.total ? Math.round(100*st.scanned/st.total) : 0;
+    $("pbar").style.width = pct + "%";
+    var t = st.state === "running" ? "scanning" : st.state;
+    $("stats").textContent = t + " · " + st.scanned + "/" + st.total + " (" + pct + "%) · " +
+      st.alive + " alive · " + fmtDur(st.elapsedMs);
+  }
+
+  function setRunning(on){
+    running = on;
+    $("go").textContent = on ? "Stop" : "Start scan";
+    $("go").classList.toggle("stop", on);
+  }
+
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  // Pull results incrementally until the scan is finished and fully fetched.
+  async function follow(id){
+    scanId = id;
+    while(scanId === id){
+      var st;
+      try{
+        var r = await fetch(ep("status", "id="+id+"&since="+next), {cache:"no-store"});
+        st = await r.json();
+      }catch(e){ setStatus("Lost contact with the scanner — is the app still running?", "err"); await sleep(2000); continue; }
+      if(scanId !== id) return;
+      if(!st.id){
+        if(st.current){ // someone started a newer scan (another tab / operator): follow it
+          hosts = []; next = 0; render();
+          setStatus("A newer scan was started elsewhere — showing it.");
+          id = st.current; scanId = id; continue;
+        }
+        setRunning(false); setStatus("Scan no longer available (the app was restarted).", "err"); return;
+      }
+      if(st.hosts && st.hosts.length){ hosts = hosts.concat(st.hosts); render(); }
+      next = st.next;
+      showProgress(st);
+      var fetchedAll = next >= st.scanned;
+      if(st.state !== "running" && fetchedAll){
+        setRunning(false);
+        setStatus("Scan " + st.state + ": " + st.alive + " alive of " + st.total + " in " + fmtDur(st.elapsedMs) + ".", st.state === "done" ? "ok" : null);
+        return;
+      }
+      setRunning(st.state === "running");
+      if(fetchedAll) await sleep(700);
+    }
+  }
+
+  $("f").addEventListener("submit", async function(ev){
+    ev.preventDefault();
+    if(running){
+      try{ await fetch(ep("stop"), {method:"POST"}); }catch(e){}
+      setStatus("Stopping…");
+      return;
+    }
+    save();
+    var body = {
+      targets: $("targets").value.trim(),
+      ports: $("ports").value.trim(),
+      threads: parseInt($("threads").value, 10) || 0,
+      timeoutMs: parseInt($("timeout").value, 10) || 0,
+      dns: $("dns").checked, netbios: $("netbios").checked, web: $("web").checked
+    };
+    if(!body.targets){ setStatus("Enter an IP range to scan.", "err"); $("targets").focus(); return; }
+    setStatus("Starting scan of " + body.targets + " …");
+    var r, d = {};
+    try{
+      r = await fetch(ep("start"), {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+      try{ d = await r.json(); }catch(e){}
+    }catch(e){ setStatus("Network error — is the app running?", "err"); return; }
+    if(!r.ok || d.error){ setStatus(d.error || ("Failed (" + r.status + ")."), "err"); return; }
+    hosts = []; next = 0; render();
+    setRunning(true);
+    setStatus("Scanning " + d.total + " address" + (d.total===1?"":"es") + " …");
+    follow(d.id);
+  });
+
+  $("csv").addEventListener("click", function(){
+    if(!hosts.length){ setStatus("Nothing to export yet.", "err"); return; }
+    location.href = ep("export", $("showDead").checked ? "all=1" : "");
+  });
+
+  // ---- startup: device networks, defaults, and any scan already in progress ----
+  var hadSaved = load();
+  syncPreset(); // a named preset wins; "custom" keeps the saved port list
+
+  var idleTmo = 1800, idleAt = 0, idleSeen = 0;
+  function info(first){
+    return fetch(ep("info"), {cache:"no-store"}).then(function(r){ return r.json(); }).then(function(j){
+      idleTmo = j.idleTimeout; idleSeen = j.idleSeconds; idleAt = Date.now();
+      var m = Math.round(idleTmo/60); $("tmo").textContent = m + " min";
+      $("icmp").textContent = j.icmp === "off" ? "TCP + ARP (ICMP not permitted)" : "ICMP ("+j.icmp+") + TCP + ARP";
+      if(first){
+        if(!hadSaved){ $("threads").value = j.defaultThreads; if(j.suggest) $("targets").value = j.suggest; }
+        $("threads").max = j.maxThreads;
+        $("nets").innerHTML = (j.networks||[]).map(function(n){
+          var s = n.suggest || n.cidr;
+          return '<span class="chip" data-v="'+esc(s)+'" title="'+esc(n.iface+" · this camera is "+n.ip+"/"+n.prefix)+'">'+esc(n.iface)+": "+esc(s)+'</span>';
+        }).join("");
+        $("nets").querySelectorAll(".chip").forEach(function(c){
+          c.addEventListener("click", function(){ $("targets").value = c.dataset.v; save(); });
+        });
+      }
+      tick();
+    }).catch(function(){ $("idle").textContent = "scanner stopped — re-enable the app"; });
+  }
+  function tick(){
+    if(!idleAt) return;
+    var idle = running ? 0 : idleSeen + (Date.now()-idleAt)/1000;
+    var remain = Math.max(0, Math.round(idleTmo - idle));
+    $("idle").textContent = running ? "scan running" : "stops in " + Math.floor(remain/60) + "m" + ("0"+(remain%60)).slice(-2) + "s";
+  }
+  info(true).then(function(){
+    return fetch(ep("status", "since=0"), {cache:"no-store"}).then(function(r){ return r.json(); });
+  }).then(function(st){
+    if(st && st.id){
+      if(st.targets) $("targets").value = st.targets;
+      hosts = []; next = 0;
+      setStatus(st.state === "running" ? "Resuming view of the running scan…" : "Showing the last scan.");
+      follow(st.id);
+    }
+  }).catch(function(){});
+  setInterval(info, 15000);
+  setInterval(tick, 1000);
+  render();
+})();
+</script>
+</body>
+</html>

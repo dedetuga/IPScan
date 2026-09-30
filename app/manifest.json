@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.3.0",
+  "acapPackageConf": {
+    "setup": {
+      "appName": "ipscan",
+      "friendlyName": "IP Scan",
+      "vendor": "Filipe Brigido 2026",
+      "version": "1.0.0",
+      "embeddedSdkVersion": "3.0",
+      "runMode": "once"
+    },
+    "configuration": {
+      "settingPage": "index.html",
+      "reverseProxy": [
+        {
+          "apiPath": "api",
+          "target": "http://localhost:2202",
+          "access": "admin"
+        }
+      ]
+    }
+  }
+}

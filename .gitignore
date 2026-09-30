@@ -1,0 +1,7 @@
+# Build outputs (release .eap files live in dist/ and are committed on release)
+/out/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp

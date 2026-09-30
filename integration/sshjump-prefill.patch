@@ -1,0 +1,21 @@
+diff --git a/app/html/index.html b/app/html/index.html
+index 7ceaba0..e02aa6e 100644
+--- a/app/html/index.html
++++ b/app/html/index.html
+@@ -105,6 +105,16 @@
+   }
+   authSel.addEventListener("change", syncAuth); syncAuth();
+ 
++  // Prefill from the URL (?host=&port=&user=) — used by the IP Scan ACAP's
++  // one-click "SSH" links. Nothing is submitted automatically.
++  (function(){
++    var q = new URLSearchParams(location.search);
++    if(q.get("host")) $("host").value = q.get("host");
++    if(/^\d+$/.test(q.get("port")||"")) $("port").value = q.get("port");
++    if(q.get("user")) $("user").value = q.get("user");
++    if(q.get("host")) (q.get("user") ? $("password") : $("user")).focus();
++  })();
++
+   var term = new Terminal({
+     cursorBlink:true, fontFamily:"var(--mono)", fontSize:13,
+     theme:{background:"#000000"}, scrollback:5000

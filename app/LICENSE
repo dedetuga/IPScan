@@ -1,0 +1,161 @@
+###############################################################################
+IP Scan for AXIS OS
+###############################################################################
+
+IP Scan — ACAP network scanner for Axis devices
+Version 1.0.0
+Copyright (c) 2026 Filipe Brigido. All rights reserved.
+
+-------------------------------------------------------------------------------
+1. LICENSE GRANT
+-------------------------------------------------------------------------------
+
+Subject to the terms below, the copyright holder ("Author") grants the owner or
+authorized operator of the Axis device on which this application is installed
+("You") a non-exclusive, non-transferable, royalty-free license to install and
+use this application ("Software") on Axis devices that You own or are authorized
+to administer, for the purpose of administering devices on Your own local
+network.
+
+-------------------------------------------------------------------------------
+2. PERMITTED USE
+-------------------------------------------------------------------------------
+
+The Software discovers hosts on networks reachable from the Axis device (ICMP
+echo, TCP connection attempts, ARP, NetBIOS name queries, reverse DNS and HTTP
+requests) and reports the results through the Axis device web interface. It is
+intended solely for inventory and administration of networks and equipment that
+You own or are otherwise expressly authorized to scan.
+
+You agree to use the Software only in a manner that is:
+  (a) consistent with all applicable laws and regulations;
+  (b) consistent with the policies of the network You scan; and
+  (c) within the scope of authorization You hold for each target network.
+
+-------------------------------------------------------------------------------
+3. RESTRICTIONS
+-------------------------------------------------------------------------------
+
+You shall NOT use the Software to access, scan, probe, or interfere with any
+system, network, or device for which You do not hold explicit authorization.
+Unauthorized scanning of computer systems may be prohibited and may be a
+criminal offense. You are solely responsible for how the Software is used and
+for any consequences arising from scans performed with it.
+
+You shall not remove or alter any copyright, trademark, or attribution notices
+contained in the Software or this document.
+
+-------------------------------------------------------------------------------
+4. SECURITY NOTICE
+-------------------------------------------------------------------------------
+
+The Software listens only on the device loopback interface (or a local Unix
+socket); all external access is mediated by the Axis device web server, reusing
+its authentication and TLS, and restricted to administrators. Scan results are
+kept in memory only and are discarded when the Software stops. As a safeguard,
+the Software automatically stops after a configurable period of inactivity
+(default 30 minutes).
+
+-------------------------------------------------------------------------------
+5. DISCLAIMER OF WARRANTY
+-------------------------------------------------------------------------------
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. THE AUTHOR DOES NOT
+WARRANT THAT THE SOFTWARE WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT IT IS
+FREE OF VULNERABILITIES.
+
+-------------------------------------------------------------------------------
+6. LIMITATION OF LIABILITY
+-------------------------------------------------------------------------------
+
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+LOSS OF ACCESS TO DEVICES, LOSS OF DATA, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES, OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THE SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------------------------
+7. TRADEMARKS
+-------------------------------------------------------------------------------
+
+"Axis", "AXIS OS", "ACAP" and "ARTPEC" are trademarks of Axis Communications AB.
+"Angry IP Scanner" is the name of an independent open-source project and is
+mentioned for comparison only. All other trademarks are the property of their
+respective owners. This application is an independent work and is not
+affiliated with, endorsed by, or sponsored by Axis Communications AB.
+
+###############################################################################
+Third Party Licenses
+###############################################################################
+
+This application incorporates the following third-party components. Each is
+distributed under its own license, reproduced in full below.
+
+-------------------------------------------------------------------------------
+
+Go programming language (standard library and runtime)
+https://go.dev
+
+License:
+
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google LLC nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+###############################################################################
+
+oui-data (MAC address vendor table derived from the IEEE registries)
+https://github.com/silverwind/oui-data
+
+License:
+
+Copyright (c) silverwind
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+###############################################################################
