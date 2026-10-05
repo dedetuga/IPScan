@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install IP Scan (classic ACAP, ARTPEC-4/5 MIPS). Run as root on the camera:
-#   scp ipscan_1_1_0_artpec5_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
+#   scp ipscan_1_1_1_artpec5_mipsisa32r2el.eap install-dev.sh root@CAM:/tmp/
 #   ssh root@CAM 'sh /tmp/install-dev.sh'
 #
 # How it works (each point solved a real blocker on AXIS OS 9.70 / ARTPEC-5):

@@ -17,13 +17,13 @@ One source tree builds **all four** packages, each meant to cover AXIS OS
 
 | Package | Cameras | AXIS OS |
 |---|---|---|
-| `ipscan_1_1_0_aarch64.eap` | ARTPEC‑8/9, CV25 … | 10.x – 12.x |
-| `ipscan_1_1_0_armv7hf.eap` | ARTPEC‑6/7, S2L/S5L … | 9.x – 12.x |
-| `ipscan_1_1_0_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | 9.x (classic, SSH install) |
-| `ipscan_1_1_0_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | 9.x (classic, SSH install) |
+| `ipscan_1_1_1_aarch64.eap` | ARTPEC‑8/9, CV25 … | 10.x – 12.x |
+| `ipscan_1_1_1_armv7hf.eap` | ARTPEC‑6/7, S2L/S5L … | 9.x – 12.x |
+| `ipscan_1_1_1_artpec4_mipsisa32r2el.eap` | ARTPEC‑4 | 9.x (classic, SSH install) |
+| `ipscan_1_1_1_artpec5_mipsisa32r2el.eap` | ARTPEC‑5 | 9.x (classic, SSH install) |
 
-Prebuilt packages are in [`dist/`](dist/); the previous release (1.0.1, AXIS OS
-10.6+ only on ARM) is kept in `dist/1.0.1/`.
+Prebuilt packages are in [`dist/`](dist/); the 1.0.1 packages (AXIS OS 10.6+ only on ARM) are kept in `dist/1.0.1/`;
+the others are attached to the GitHub releases.
 
 ### Test status
 
@@ -32,7 +32,7 @@ Prebuilt packages are in [`dist/`](dist/); the previous release (1.0.1, AXIS OS
 | 1.0.1 aarch64 | ✅ AXIS P3265‑LVE (ARTPEC‑8), via `api/` | ✅ |
 | 1.0.0 | ✅ AXIS M3105‑L | ✅ |
 | 1.0.1 armv7hf | ❌ did not start on an armv7hf camera (empty log) — fixed in 1.1.0 by the PIE launcher + `package.conf` path | ✅ |
-| 1.1.0 (all four) | ⏳ not yet | ✅ daemon, both transports, launchers |
+| 1.1.1 (all four) | ⏳ not yet | ✅ daemon, both transports, launchers; Apache 2.4.58 proxy config |
 
 ## How one package runs on AXIS OS 9 … 12
 
@@ -52,6 +52,13 @@ Prebuilt packages are in [`dist/`](dist/); the previous release (1.0.1, AXIS OS
   FastCGI on `$FCGI_SOCKET_NAME`, or the classic Unix socket) and logs each
   `listening on …` line; the page probes `api/` then `control.cgi` and keeps
   the one that answers.
+* **One `mod_proxy` worker per app.** `mod_proxy` keys its workers on the URL
+  after the `|` in `ProxyPass "unix:…|http://host/…"`, not on the socket. If two
+  ACAPs both use `http://localhost/control.cgi`, Apache merges them into one
+  worker and sends both apps' `control.cgi` to the same daemon. IP Scan
+  therefore uses `http://ipscan.acap/control.cgi` (the Host is cosmetic; the
+  daemon routes on `?op=`). Verified on Apache 2.4.58 next to an app that still
+  uses `localhost`. Any other classic ACAP should use its own `<app>.acap` host.
 * `package.conf` asks for embedded SDK 2.0 (so AXIS OS 9 accepts it);
   `manifest.json` uses schema 1.3.0 (AXIS OS 10.9+ validates it; the
   architecture field is filled per package).
@@ -83,8 +90,8 @@ another browser) shows the running / last scan.
 1. Camera web UI → **Apps**. On AXIS OS 11/12 enable **"Allow unsigned apps"**
    (or sign the `.eap`, see SSH Jump's README §5 — identical procedure; AXIS
    OS 13+ requires signing).
-2. **Add app** → upload `ipscan_1_1_0_aarch64.eap` (ARTPEC‑8+) or
-   `ipscan_1_1_0_armv7hf.eap` (ARTPEC‑6/7). A wrong architecture is rejected
+2. **Add app** → upload `ipscan_1_1_1_aarch64.eap` (ARTPEC‑8+) or
+   `ipscan_1_1_1_armv7hf.eap` (ARTPEC‑6/7). A wrong architecture is rejected
    at upload, so if unsure just try.
 3. **Enable/Start** the app, then **Open**. On AXIS OS 9.x/10.0–10.5 the
    install script also restarts Apache — wait ~10 s before opening the page.
@@ -95,7 +102,7 @@ Exactly like SSH Jump (Legacy) — the web‑UI installer can't install on this
 hardware (ACAP framework 2.x):
 
 ```bash
-scp dist/ipscan_1_1_0_artpec5_mipsisa32r2el.eap packaging/install-dev.sh root@<camera>:/tmp/
+scp dist/ipscan_1_1_1_artpec5_mipsisa32r2el.eap packaging/install-dev.sh root@<camera>:/tmp/
 ssh root@<camera> 'CAM_PASS=<root password> sh /tmp/install-dev.sh'
 ```
 

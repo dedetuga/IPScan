@@ -46,7 +46,7 @@ import (
 // Build-time settings (-ldflags "-X main.version=... -X main.flavor=...").
 // flavor is informational only (shown by op=info); nothing depends on it.
 var (
-	version = "1.1.0"
+	version = "1.1.1"
 	flavor  = "dev"
 )
 

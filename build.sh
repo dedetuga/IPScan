@@ -27,7 +27,7 @@ set -euo pipefail
 APP=ipscan
 FRIENDLY="IP Scan"
 VENDOR="Filipe Brigido 2026"
-VER_MAJOR=1; VER_MINOR=1; VER_MICRO=0
+VER_MAJOR=1; VER_MINOR=1; VER_MICRO=1
 VERSION="${VER_MAJOR}.${VER_MINOR}.${VER_MICRO}"
 INSTALL_DIR="/usr/local/packages/${APP}"   # where every AXIS OS installs ACAPs
 REAL_BIN="${INSTALL_DIR}/bin/${APP}"       # the static Go daemon (launcher target)
